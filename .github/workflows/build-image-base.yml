@@ -21,9 +21,17 @@ jobs:
             dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc \
             gpg pigz xxd arch-test bmap-tools kmod
 
-      - name: Build image using Docker
+      - name: Prepare environment
         run: |
-          sudo ./build-docker.sh
+          sudo apt install -y debian-archive-keyring
+          sudo mkdir -p /etc/qemu-binfmt
+          sudo update-binfmts --enable qemu-arm
+          sudo update-binfmts --enable qemu-aarch64
+          sudo chmod +x build.sh
+
+      - name: Build Image
+        run: |
+          sudo ./build.sh
 
       - name: Compress image and generate checksums
         run: |
@@ -47,7 +55,8 @@ jobs:
           body: |
             This is an automatically built image of your custom Raspberry Pi OS.
 
-            ✅ Built on: ${{ github.run_id }}
+            ✅ Build number: ${{ github.run_number }}
+            ✅ Build ID: ${{ github.run_id }}
             ✅ Configuration: `config`
             ✅ Stage list: see repo source
 
