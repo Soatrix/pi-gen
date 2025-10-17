@@ -1,0 +1,59 @@
+name: Build and Release Raspberry Pi Image
+
+on:
+  workflow_dispatch:            # Manual trigger
+  push:
+    branches: [ main ]          # Optional: auto-build when pushing to main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 720        # Allow long builds (12 hours max)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            coreutils quilt parted qemu-user-static debootstrap zerofree zip \
+            dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc \
+            gpg pigz xxd arch-test bmap-tools kmod
+
+      - name: Build image using Docker
+        run: |
+          sudo ./build-docker.sh
+
+      - name: Compress image and generate checksums
+        run: |
+          cd deploy
+          IMG=$(ls *.img | head -n1)
+          echo "Compressing $IMG..."
+          xz -T0 -9 "$IMG"
+          sha256sum "$IMG.xz" > "$IMG.xz.sha256"
+
+      - name: Upload build artifacts (for inspection)
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-image
+          path: deploy/*.xz*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "Automated Build #${{ github.run_number }}"
+          body: |
+            This is an automatically built image of your custom Raspberry Pi OS.
+
+            ✅ Built on: ${{ github.run_id }}
+            ✅ Configuration: `config`
+            ✅ Stage list: see repo source
+
+            Flash using **Raspberry Pi Imager** or **balenaEtcher**.
+          files: |
+            deploy/*.xz
+            deploy/*.xz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
